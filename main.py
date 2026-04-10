@@ -5,11 +5,13 @@ from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from openai import OpenAI
 
+# Налаштування (беруться з оточення)
 API_ID = int(os.getenv('TG_API_ID'))
 API_HASH = os.getenv('TG_API_HASH')
 STRING_SESSION = os.getenv('TG_STRING_SESSION')
 OPENAI_KEY = os.getenv('OPENAI_API_KEY')
 
+# Ініціалізація клієнтів
 client = OpenAI(api_key=OPENAI_KEY)
 tg_client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
 
@@ -24,12 +26,20 @@ SYSTEM_PROMPT = (
 
 @tg_client.on(events.NewMessage(incoming=True))
 async def handler(event):
-    if not event.is_private: return
+    # Працюємо тільки в приватних повідомленнях
+    if not event.is_private: 
+        return
 
-    async with tg_client.action(event.chat_id, 'typing'):
-        # Гілфойл відповідає швидко, коли хоче послати
-        await asyncio.sleep(random.randint(2, 5)) 
-        try:
+    try:
+        # Отримуємо сутність чату (input entity), щоб уникнути ValueError
+        chat_entity = await event.get_input_chat()
+
+        # Показуємо статус "друкує"
+        async with tg_client.action(chat_entity, 'typing'):
+            # Затримка для ефекту присутності
+            await asyncio.sleep(random.randint(2, 5)) 
+
+            # Запит до OpenAI
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
@@ -37,17 +47,32 @@ async def handler(event):
                     {"role": "user", "content": event.text}
                 ],
                 temperature=1.0,
-                max_tokens=60 # Обмежуємо довжину, щоб не «розтікався мислю»
+                max_tokens=60
             )
+            
             reply = response.choices[0].message.content
+            
+            # Відповідаємо на повідомлення
             await event.reply(reply)
-        except Exception as e:
-            print(f"Error: {e}")
+
+    except Exception as e:
+        print(f"Error in handler: {e}")
 
 async def main():
+    # Авторизація
     await tg_client.start()
-    print("Гілфойл у режимі 'Повний неадекват' запущений.")
+    
+    # Важливо: завантажуємо діалоги, щоб Telethon закешував "entities"
+    # Це допомагає уникнути помилок "Could not find input entity"
+    await tg_client.get_dialogs()
+    
+    print("Гілфойл (Петро Мамут) у режимі 'Повний неадекват' запущений.")
+    
+    # Тримаємо клієнт запущеним
     await tg_client.run_until_disconnected()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Вимкнення...")
