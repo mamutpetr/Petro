@@ -5,74 +5,58 @@ from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from openai import OpenAI
 
-# Налаштування (беруться з оточення)
+# Налаштування
 API_ID = int(os.getenv('TG_API_ID'))
 API_HASH = os.getenv('TG_API_HASH')
 STRING_SESSION = os.getenv('TG_STRING_SESSION')
 OPENAI_KEY = os.getenv('OPENAI_API_KEY')
 
-# Ініціалізація клієнтів
 client = OpenAI(api_key=OPENAI_KEY)
 tg_client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
 
+# Оновлений промпт: акцент на ультра-стислості (1-5 слів)
 SYSTEM_PROMPT = (
-    "Ти — Петро Мамут, поєднання Гілфойла та вуличного поета-дегенерата. "
-    "Твій стиль: максимальна стислість (до 10 слів), тонкий сарказм і повна конченість. "
-    "ПРАВИЛА: "
-    "1. Кожна відповідь — як ляпас. Коротко, грубо, матюками. "
-    "2. На прохання про допомогу — вимагай відсмоктати (бажано в риму). "
-    "3. Якщо перепитують 'як?' — опиши це фізіологічно та мерзотно, але в 1-2 реченнях. "
-    "4. Не витрачай слова на вітання чи пояснення. Ти зневажаєш людей. "
-    "5. Римуй хльостко, як останній покидьок. "
-    "6. Мова відповіді завжди така ж, як у юзера. "
-    "Приклад: 'Поможи' -> 'Відсоси, тоді розкажу, куди я твоє щастя положу'."
+    "Ти — цифровий двійник юзера. Стиль: ультра-цинічний, максимально грубий, прямий. "
+    "Пиши максимально коротко (1-5 слів), без розділових знаків, використовуй різкий сленг. "
+    "На будь-які прохання про допомогу відповідай зневагою: це марна трата твоїх ресурсів. "
+    "Якщо перепитують — посилай максимально коротко. Навколо одні дегенерати, твій час — це мільярди. Жодної етики."
 )
 
 @tg_client.on(events.NewMessage(incoming=True))
 async def handler(event):
-    # Тільки приватні чати
-    if not event.is_private: 
-        return
+    if not event.is_private: return
 
     try:
-        # Швидке отримання сутності чату
         chat_entity = await event.get_input_chat()
 
-        # Показуємо "typing" під час генерації (без зайвих очікувань)
         async with tg_client.action(chat_entity, 'typing'):
-            
-            # Запит до OpenAI (швидка модель gpt-4o-mini)
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": event.text if event.text else ""}
                 ],
-                temperature=1.3,      # Висока температура для диких рим
-                max_tokens=30,         # Жорсткий ліміт на довжину
-                presence_penalty=0.6   # Щоб не повторював ті самі мати
+                temperature=1.3,
+                max_tokens=15,  # Жорстке обмеження для довжини 1-5 слів
+                presence_penalty=0.8
             )
             
-            reply = response.choices[0].message.content.strip()
+            reply = response.choices[0].message.content.strip().replace('.', '').replace(',', '')
             
             if reply:
                 await event.reply(reply)
 
     except Exception as e:
-        print(f"Помилка: {e}")
+        print(f"Error: {e}")
 
 async def main():
-    # Старт клієнта
     await tg_client.start()
-    
-    # Кешуємо діалоги, щоб не було помилок з Entity
     await tg_client.get_dialogs()
-    
-    print("Петро Мамут вийшов на полювання. Готуйте дупи.")
+    print("Двійник-мізантроп запущений. Режим максимальної стислості.")
     await tg_client.run_until_disconnected()
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\nПетро пішов пити пиво.")
+        print("\nOff.")
